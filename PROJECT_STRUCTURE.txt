@@ -1,0 +1,554 @@
+PROJECT STRUCTURE & FILE GUIDE
+==============================
+
+PROJECT ROOT
+============
+
+.env
+  Purpose: Store sensitive configuration (API keys, model names)
+  Usage: Automatically loaded by config/settings.py
+  Keep Secret: YES (never commit to git)
+  
+.env.example
+  Purpose: Template showing what variables go in .env
+  Usage: Reference file for setup
+  Keep Secret: NO (safe to share)
+
+requirements.txt
+  Purpose: Python package dependencies
+  Files inside: List of packages needed (langgraph, langchain, pydantic, etc.)
+  Usage: pip install -r requirements.txt
+
+.gitignore
+  Purpose: Tell git which files to ignore (secrets, cache, etc.)
+  Ignores: .env, __pycache__, venv/, results/
+
+validate.ps1
+  Purpose: PowerShell script for quick command execution
+  Usage: ./validate.ps1 "Your design here"
+  Shortcut: Wraps python -m src.main with easier syntax
+
+QUICKSTART.md
+  Purpose: Quick setup & usage guide for new users
+  Contains: 3-step setup, command examples, troubleshooting
+
+README.md
+  Purpose: Complete project documentation
+  Contains: Overview, architecture, quick start, limitations
+
+OPENROUTER_SETUP.md
+  Purpose: Detailed guide for OpenRouter API setup
+  Contains: Step-by-step setup, model recommendations, cost info
+
+PROMPTS_REFERENCE.md
+  Purpose: Explanation of prompt engineering strategy
+  Contains: First-principles reasoning, domain heuristics
+
+IMPLEMENTATION_SUMMARY.md
+  Purpose: Technical implementation details
+  Contains: Code structure, design decisions
+
+---
+
+FOLDERS & SUBFOLDERS
+====================
+
+src/
+├── Source code directory (all application code)
+│
+├── main.py
+│   Purpose: CLI entry point for the application
+│   Contains: Command-line argument parsing, validation orchestration
+│   Usage: python -m src.main --design "..." --output report.json
+│
+├── graph/
+│   Purpose: LangGraph workflow orchestration
+│   Files:
+│   ├── state.py
+│   │   Purpose: Define DesignValidationState TypedDict
+│   │   Contains: All data structures for state flow
+│   │   Key Classes: ParsedDesignEntity, MechanicalAnalysis, ElectricalAnalysis, etc.
+│   │
+│   └── workflow.py
+│       Purpose: Create LangGraph with 6 nodes and conditional routing
+│       Contains: DesignValidatorGraph class, node execution logic
+│       Key Nodes: parser → materials/electrical (parallel) → conflict → modification → output
+│
+├── agents/
+│   Purpose: 5 specialized agents that analyze different aspects
+│   Files:
+│   ├── parser_agent.py
+│   │   Purpose: Extract design entities from natural language
+│   │   Input: Design description string
+│   │   Output: Parsed entities (material, mechanism, failures)
+│   │
+│   ├── materials_agent.py
+│   │   Purpose: Analyze mechanical properties & rupture thresholds
+│   │   Input: Parsed design
+│   │   Output: Material failure modes, stress limits, risk factors
+│   │
+│   ├── electrical_agent.py
+│   │   Purpose: Analyze conductivity & electrical resistance
+│   │   Input: Parsed design
+│   │   Output: Electrical failure modes, restoration time, efficiency
+│   │
+│   ├── conflict_agent.py
+│   │   Purpose: Detect cross-domain conflicts & interactions
+│   │   Input: Both domain analyses
+│   │   Output: List of conflicts with severity scores (1-10)
+│   │
+│   └── modification_agent.py
+│       Purpose: Generate design modifications to resolve conflicts
+│       Input: Detected conflicts + design
+│       Output: Suggested modifications with feasibility scores
+│
+├── prompts/
+│   Purpose: LLM prompts with first-principles reasoning
+│   Files:
+│   ├── parser.py
+│   │   Purpose: Few-shot prompt for entity extraction
+│   │   Contains: Examples of design parsing
+│   │
+│   ├── materials.py
+│   │   Purpose: Material science analysis prompt
+│   │   Contains: Fracture mechanics equations, stress formulas
+│   │   Example: SA/V ratio impact, exponential stress scaling
+│   │
+│   ├── electrical.py
+│   │   Purpose: Electrical engineering analysis prompt
+│   │   Contains: Circuit analysis, resistance equations
+│   │   Example: R = ρL/A, exponential resistance scaling
+│   │
+│   ├── conflict.py
+│   │   Purpose: Cross-domain conflict detection prompt
+│   │   Contains: Parameter comparison heuristics
+│   │
+│   └── modification.py
+│       Purpose: Design synthesis and modification prompt
+│       Contains: Trade-off analysis framework
+│
+├── schemas/
+│   Purpose: Pydantic validators for LLM output validation
+│   Files:
+│   └── output_schemas.py
+│       Purpose: Define and validate all output formats
+│       Contains: ParsedDesignSchema, MaterialsAnalysisSchema, etc.
+│       Ensures: Type safety, correct JSON structure
+│
+└── utils/
+    Purpose: Helper utilities and LLM clients
+    Files:
+    ├── openrouter_client.py
+    │   Purpose: OpenRouter API client for LLM inference
+    │   Contains: HTTP requests, token counting, model management
+    │   Methods: generate(), generate_json(), _verify_connection()
+    │
+    └── llm_client.py
+        Purpose: (Deprecated - kept for reference)
+        Old: Ollama client (no longer used)
+
+---
+
+config/
+├── Configuration management
+│
+└── settings.py
+    Purpose: Load environment variables from .env file
+    Contains: OPENROUTER_API_KEY, OPENROUTER_MODEL, LLM_TEMPERATURE
+    Usage: Imported by src/main.py and other modules
+
+---
+
+tests/
+├── Test suite directory
+│
+├── test_agents.py
+│   Purpose: Unit tests for individual agents
+│
+├── test_workflow.py
+│   Purpose: Test LangGraph workflow execution
+│
+└── test_integration.py
+    Purpose: End-to-end integration tests
+
+---
+
+examples/
+├── Example files for learning & testing
+│
+├── sample_input.txt
+│   Purpose: Example design descriptions
+│
+└── sample_output.json
+    Purpose: Example validation report structure
+
+---
+
+results/
+├── Output directory (auto-created)
+│
+└── report.json
+    Purpose: Generated validation report from each run
+    Contains: Parsed design, analyses, conflicts, modifications
+
+---
+
+outputs/
+├── Alternative output directory (can be used)
+    Purpose: Same as results/ (for flexibility)
+
+---
+
+DATA FLOW
+=========
+
+1. User Input
+   ↓
+2. src/main.py (CLI parsing)
+   ↓
+3. config/settings.py (Load .env)
+   ↓
+4. src/utils/openrouter_client.py (LLM connection)
+   ↓
+5. src/graph/workflow.py (LangGraph orchestration)
+   ├─→ src/agents/parser_agent.py
+   │   └─→ src/prompts/parser.py
+   │
+   ├─→ src/agents/materials_agent.py (parallel)
+   │   └─→ src/prompts/materials.py
+   │
+   ├─→ src/agents/electrical_agent.py (parallel)
+   │   └─→ src/prompts/electrical.py
+   │
+   ├─→ src/agents/conflict_agent.py
+   │   └─→ src/prompts/conflict.py
+   │
+   └─→ src/agents/modification_agent.py
+       └─→ src/prompts/modification.py
+   ↓
+6. src/schemas/output_schemas.py (Validate output)
+   ↓
+7. results/report.json (Save report)
+   ↓
+8. User sees: Summary + full JSON report
+
+---
+
+KEY FILES TO UNDERSTAND
+=======================
+
+START HERE:
+- QUICKSTART.md → How to run
+- README.md → What it does
+
+FOR SETUP:
+- .env → Your API key goes here
+- config/settings.py → How config is loaded
+
+FOR EXECUTION:
+- src/main.py → Entry point
+- src/graph/workflow.py → Graph structure
+
+FOR ANALYSIS:
+- src/agents/ → Where analysis happens
+- src/prompts/ → What prompts are sent to LLM
+
+FOR OUTPUT:
+- src/schemas/output_schemas.py → Output validation
+- results/report.json → Final result
+
+---
+
+FILE TYPES
+==========
+
+.py files (Python)
+  Application code, agents, utilities
+
+.md files (Markdown)  
+  Documentation (README, guides)
+
+.txt files
+  Configuration (requirements.txt), examples
+
+.json files
+  Data (report.json, schemas)
+
+.ps1 files (PowerShell)
+  Script for Windows users (validate.ps1)
+
+.env files
+  Environment configuration (secrets)
+
+---
+
+TYPICAL WORKFLOW
+================
+
+1. User runs: python -m src.main -d "design description"
+
+2. Flow:
+   → src/main.py reads CLI args
+   → Load .env via config/settings.py
+   → Create OpenRouterClient from src/utils/
+   → Create DesignValidatorGraph from src/graph/
+   → Execute workflow (all 5 agents run)
+   
+3. Each agent:
+   → Gets input from state
+   → Runs LLM with prompt from src/prompts/
+   → Validates output with src/schemas/
+   → Updates state
+   
+4. Final report:
+   → All results compiled
+   → Saved to results/report.json
+   → Summary printed to console
+
+---
+
+WHEN TO MODIFY
+==============
+
+Add new domain analysis?
+  → Create new agent in src/agents/
+  → Create prompt in src/prompts/
+  → Create schema in src/schemas/
+  → Update workflow.py
+
+Change LLM behavior?
+  → Edit prompts in src/prompts/
+  → Update temperature/max_tokens in config/settings.py
+
+Change output format?
+  → Modify src/schemas/output_schemas.py
+
+Add features?
+  → Add agent nodes to src/graph/workflow.py
+
+Improve performance?
+  → Optimize prompts (fewer tokens)
+  → Use faster model in .env (change OPENROUTER_MODEL)
+
+---
+
+INTERVIEW Q&A
+=============
+
+Q1: What problem does this project solve?
+A: Design decisions optimized for one domain (Materials Science) often create
+   unintended problems in another domain (Electrical Engineering). This system
+   automatically detects these cross-domain conflicts before physical prototyping,
+   saving time and development costs.
+
+Q2: How does it detect conflicts?
+A: 
+   1. Parse design into structured entities (material, mechanism, failures)
+   2. Run independent domain analyses (Materials + Electrical in parallel)
+   3. Compare parameters across domains systematically
+   4. Use LLM reasoning to identify interactions where optimizing one domain
+      breaks another (e.g., smaller capsules = better rupture, but worse
+      conductivity due to higher resistance)
+   5. Score severity 1-10 based on impact
+
+Q3: Why use LangGraph instead of sequential execution?
+A: 
+   - Conditional routing: Skip expensive modification phase if no conflicts
+   - Type safety: Immutable TypedDict state with validated transitions
+   - Parallelization: Materials + Electrical agents run simultaneously
+   - Extensibility: Easy to add more agents without restructuring
+   - Debuggability: Clear node-to-node execution flow
+
+Q4: Why OpenRouter instead of local Ollama?
+A:
+   - Speed: 2-5 seconds vs 30-120 seconds per request
+   - Reliability: Redundant infrastructure vs single machine failure risk
+   - Flexibility: 50+ models available without downloading
+   - Cost: ~$0.003-0.004 per design run (pay-as-you-go)
+   - No hardware requirements: Works anywhere with internet
+
+Q5: How do you ensure output quality from the LLM?
+A:
+   - Pydantic schemas: Strict validation of JSON structure
+   - Few-shot prompting: Provide examples in system prompts
+   - First-principles heuristics: Encode domain knowledge in prompts
+   - Temperature=0.3: Lower randomness, more consistent outputs
+   - Max tokens optimization: Reduce hallucination by limiting verbosity
+
+Q6: What's the state management strategy?
+A:
+   - Single TypedDict (DesignValidationState) shared across all agents
+   - Immutable transitions: Each agent creates NEW state, doesn't modify
+   - Full audit trail: All intermediate results preserved
+   - Type hints throughout: Catch errors at development time
+
+Q7: How are the 5 agents different?
+A:
+   - Parser: Extracts entities (just parsing, not analysis)
+   - Materials: Analyzes mechanical properties (domain-specific reasoning)
+   - Electrical: Analyzes conductivity & resistance (domain-specific reasoning)
+   - Conflict: Compares domains (meta-analysis, finds interactions)
+   - Modification: Generates solutions (synthesis, trade-off analysis)
+
+Q8: Why is prompt engineering important here?
+A:
+   - No training data: Can't fine-tune, must prompt well
+   - Domain knowledge: Equations (R=ρL/A), heuristics built into prompts
+   - Consistency: Few-shot examples show expected output format
+   - Reasoning quality: First-principles prompts > generic prompts
+
+Q9: What happens if no conflicts are detected?
+A:
+   - Modification agent is SKIPPED (no work needed)
+   - Report still generated with empty suggested_modifications list
+   - Saves tokens and execution time
+
+Q10: How would you scale this to 3+ domains?
+A:
+    1. Create new agent in src/agents/ (e.g., thermal_agent.py)
+    2. Add prompt in src/prompts/ (e.g., thermal.py)
+    3. Create schema in src/schemas/ (e.g., ThermalAnalysisSchema)
+    4. Add nodes to workflow.py (thermal runs parallel with materials/electrical)
+    5. Update conflict_agent.py to compare all N domains
+    Estimated effort: 1-2 hours per domain
+
+Q11: What's the difference between severity 7/10 vs 8/10 conflict?
+A:
+    - Severity 7: Moderate impact, can be addressed with design tweaks
+    - Severity 8: Major impact, might require fundamental redesign
+    - Calculated by: parameter mismatch magnitude + criticality score
+    - Not exact science, but helps prioritize fixes
+
+Q12: How do you handle validation errors?
+A:
+    - Try/except around LLM calls (network failures, timeouts)
+    - Pydantic validation catches malformed JSON
+    - If agent fails, entire workflow fails gracefully
+    - Error logged with context for debugging
+    - Future: Implement retry logic + fallback models
+
+Q13: Why TypedDict instead of Pydantic for state?
+A:
+    - TypedDict: Lightweight, type hints only, no runtime overhead
+    - Pydantic: Heavy, validation on every state change (slows execution)
+    - State is INTERNAL (only validated at boundaries with schemas)
+
+Q14: What's the token usage breakdown?
+A:
+    - Parser: ~500 tokens input (design) → 200-300 output
+    - Materials: ~1000 tokens input → 600-800 output
+    - Electrical: ~1000 tokens input → 600-800 output
+    - Conflict: ~1500 tokens input (both analyses) → 800-1000 output
+    - Modification: ~1500 tokens input → 800-1000 output
+    - Total: ~5000-5500 tokens per design (~$0.003-0.004 @ GPT-3.5)
+
+Q15: How does few-shot prompting work?
+A:
+    Example in prompt:
+    "Design: Wood with embedded metal springs
+     Parsed: material=wood, mechanism=spring-compression, failures=[splitting]
+     
+     Design: Your design here
+     Parsed: [You fill in]"
+    
+    Shows LLM the expected format without fine-tuning.
+
+Q16: Why is the report JSON structured this way?
+A:
+    - metadata: Track execution time, model used, tokens spent
+    - parsed_design: Preserve input interpretation
+    - domain_analyses: Show reasoning for each domain
+    - predicted_conflicts: Show what was found and severity
+    - suggested_modifications: Show solutions
+    - validation_status: Simple pass/fail indicator
+    
+    Design: Enables audit trail, debugging, and iterative refinement.
+
+Q17: What's a realistic design scenario for testing?
+A:
+    "A carbon fiber composite with embedded thermal sensors that adapt
+     stiffness based on temperature. Stiffer at low temps (for rigidity),
+     softer at high temps (for flexibility)."
+    
+    Conflicts likely: Thermal expansion ↔ structural rigidity
+    Modifications: Expansion joints, material layering, sensor placement
+
+Q18: How do you measure success?
+A:
+    - Accuracy: Do detected conflicts match real issues? (manual validation)
+    - Speed: <10 seconds per design (vs hours of manual analysis)
+    - Completeness: Are all major conflicts found? (coverage tests)
+    - Feasibility: Are suggested mods realistic? (domain expert review)
+
+Q19: What's your confidence in the LLM outputs?
+A:
+    - High confidence in parsing (structured, few entities)
+    - Medium-high confidence in domain analysis (well-established physics)
+    - Medium confidence in conflicts (subjective, case-dependent)
+    - Medium confidence in modifications (creative solutions, harder to validate)
+    
+    Mitigated by: Pydantic validation, few-shot prompting, temperature tuning
+
+Q20: If you added this to production, what's missing?
+A:
+    1. User authentication & rate limiting
+    2. Database to store designs & reports
+    3. Web UI for non-developers
+    4. Async job queue (designs take 20-30s)
+    5. Design versioning & comparison
+    6. Feedback loop (did suggested mods actually work?)
+    7. More domain validations (manufacturing, cost)
+    8. Caching layer (same design = same result)
+
+Q21: How would you test this?
+A:
+    Unit tests:
+    - Parse output has required fields (test_parser.py)
+    - Material analysis returns valid schema (test_materials.py)
+    - Conflict detection finds cross-domain issues
+    
+    Integration tests:
+    - Full workflow with sample designs
+    - Verify output JSON schema matches
+    - Performance benchmarks (<20s per design)
+    
+    Manual validation:
+    - Domain experts review conflicts detected
+    - Check if modifications are realistic
+
+Q22: Why did you choose Pydantic for output validation?
+A:
+    - Automatic JSON parsing + validation in one step
+    - Type safety: Errors caught early, not at output time
+    - Documentation: Schema doubles as API docs
+    - Serialization: Automatic dict → JSON conversion
+    - Error messages: Tells you exactly what's wrong
+
+Q23: What's the biggest limitation?
+A:
+    - LLM quality depends on model: GPT-4 > Claude-3 > GPT-3.5
+    - No real-time feedback: Can't ask LLM follow-up questions mid-analysis
+    - Limited to 2 domains (easily extensible, but not automated)
+    - No physical validation: Detected conflicts might not matter in practice
+
+Q24: How would you make this faster?
+A:
+    1. Cache parser output (same design = same entities)
+    2. Parallel agents already running (can't speed up further)
+    3. Use faster model (gpt-3.5 vs claude-opus)
+    4. Reduce max_tokens (LLMs spend time on longer responses)
+    5. Prompt optimization (fewer, clearer examples)
+
+Q25: What did you learn building this?
+A:
+    - LangGraph powerful for complex workflows (not just LLMs)
+    - Prompt engineering matters more than model size for structured tasks
+    - TypedDict + type hints catch bugs before runtime
+    - LLMs good at reasoning, bad at precise calculations
+    - Few-shot prompts work better than instruction-only prompts
+    - Immutable state = easier debugging
+
+---
+
+Questions? Check PROMPTS_REFERENCE.md for domain reasoning,
+or README.md for architecture overview.

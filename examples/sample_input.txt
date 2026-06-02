@@ -1,0 +1,1 @@
+A self-healing conductive material made from a polymer embedded with microcapsules containing a conductive liquid. When cracked, capsules rupture, liquid bridges the gap, restoring conductivity.
