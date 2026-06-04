@@ -30,7 +30,9 @@ Design Input (Natural Language)
 ┌────────────────────────────────────────┐
 │ Materials Analysis                     │
 └────────────────┬───────────────────────┘
-  electrical analysis 
+┌────────────────────────────────────────┐
+│ Electrical Analysis                     │
+└────────────────┬───────────────────────┘
                  ↓
 ┌─── Conflict Detector Agent ─────────────┐
 │ Find domain interactions and conflicts  │
