@@ -28,11 +28,9 @@ Design Input (Natural Language)
 └─────────────────┬──────────────────────┘
                   ↓
 ┌────────────────────────────────────────┐
-│ Materials Analysis (Parallel)          │ Electrical Analysis (Parallel)
-│ - Mechanical properties                │ - Conductivity restoration
-│ - Rupture thresholds                   │ - Resistance changes
-│ - Failure modes                        │ - Electrical failures
+│ Materials Analysis                     │
 └────────────────┬───────────────────────┘
+  electrical analysis 
                  ↓
 ┌─── Conflict Detector Agent ─────────────┐
 │ Find domain interactions and conflicts  │
